@@ -1,10 +1,11 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 using System.Collections;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
-String resolveBackupFolder = @"/Users/eric/Movies/Resolve Project Backups";
+String resolveBackupFolder = null;
 String projectFilter = null;
 bool onlyLastVersion = false;
 
@@ -14,18 +15,30 @@ if (args.Length > 0)
     {
         if (Const.debug)
             Console.WriteLine($"Argument={arg}");
-        if (arg.Contains("-P"))
-            resolveBackupFolder = arg.Replace("-P=","");
-        if (arg.Contains("-L"))
+        if (arg.ToLower().Contains("-p"))
+            resolveBackupFolder = arg.Replace("-P=","").Replace("-p=","");
+        if (arg.ToLower().Contains("-l"))
             onlyLastVersion = true;
-        if (arg.Contains("-F"))
-            projectFilter = arg.Replace("-F=", "");
+        if (arg.ToLower().Contains("-f"))
+            projectFilter = arg.Replace("-F=", "").Replace("-f=", "");
+        if (arg.ToLower().Contains("-h") || arg.ToLower().Contains("-help"))
+        {
+            DisplayHelp();
+            return;
+        }
     }
 }
 else
 {
     if (Const.debug)
         Console.WriteLine("No arguments");
+}
+
+if (resolveBackupFolder == null)
+{
+    Console.WriteLine("No backup folder specified, please use -P to specify backup folder");
+    DisplayHelp();
+    return;
 }
 
 string[] allfiles = Directory.GetFiles(resolveBackupFolder, "Project.db.*", SearchOption.AllDirectories);
@@ -80,16 +93,27 @@ foreach (DictionaryEntry entry in projects)
     if (onlyLastVersion)
     {
         ProjectVersion version = (ProjectVersion)project.versions[0];
-        Console.WriteLine("Version: " + version.date + " - " + version.databaseFile);
+        Console.WriteLine("Version: " + version.ToString());
     }
     else
         foreach (var version2 in project.versions)
         {
             ProjectVersion version = (ProjectVersion)version2;
-            Console.WriteLine("Version: " + version.date + " - " + version.databaseFile);
+            Console.WriteLine("Version: " + version.ToString());
         }
 }
 
+
+
+static void DisplayHelp()
+{
+    Console.WriteLine("Let you browse your DaVinci Resolve Backup folder more easily");
+    Console.WriteLine("Usage (parameters):");
+    Console.WriteLine("- -P=\"Path_of_your_Resolve_Backup_folder\": this is a mandatory parameter thast is used to specify your DaVinci Resolve backup folder");
+    Console.WriteLine("- -L: Only display the last backup file");
+    Console.WriteLine("- -F=\"Project_name_filter\": Display only the project containing the filter");
+
+}
 
 static String GetProjectName(String dbFilePath)
 {
@@ -122,7 +146,8 @@ class Const
 
 class ProjectVersion: IComparable
 {
-    public String date;
+    public String dateText;
+    public DateTime date;
     public String databaseFile;
 
     public ProjectVersion(String databaseFile)
@@ -131,16 +156,22 @@ class ProjectVersion: IComparable
         Match match = Regex.Match(databaseFile, @"db\.(\d{0,})");
         if (match.Success)
         {
-            date = match.Groups[1].Value;
+            dateText = match.Groups[1].Value;
+            date = DateTime.ParseExact(dateText, "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         }
         if (Const.debug)
-            Console.WriteLine("creating version " + date);
+            Console.WriteLine("creating version " + dateText);
     }
 
     public int CompareTo(object? obj)
     {
 //        return (date < ((ProjectVersion)obj).date ? -1 :1);
-        return -1*date.CompareTo(((ProjectVersion)obj).date);
+        return -1*dateText.CompareTo(((ProjectVersion)obj).dateText);
+    }
+
+    public String ToString()
+    {
+        return "Date: " + date.ToString("G") + "       ---> " + databaseFile;
     }
 }
 
